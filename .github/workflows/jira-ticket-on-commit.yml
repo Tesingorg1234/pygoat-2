@@ -16,7 +16,8 @@ jobs:
           fetch-depth: 2  # Ensure Git has history to detect changes
 
       - name: Debug Commit SHA
-        run: echo "Commit SHA: ${{ github.sha }}"
+        run: |
+          echo "Commit SHA: ${{ github.sha }}"
 
       - name: Get Changed Files
         id: changed-files
