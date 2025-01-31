@@ -19,7 +19,6 @@ jobs:
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}          # Your Jira email
           JIRA_DOMAIN: ${{ secrets.JIRA_DOMAIN }}        # Your Jira domain (e.g., your-domain.atlassian.net)
         run: |
-          # Use curl to create a Jira ticket via the REST API
           curl --request POST \
             --url "https://$JIRA_DOMAIN/rest/api/3/issue" \
             --user "$JIRA_EMAIL:$JIRA_API_TOKEN" \
@@ -28,7 +27,13 @@ jobs:
             --data '{
               "fields": {
                 "project": {
-                  "key": "SCRUM"  # Replace with your Jira project key
+                  "key": "SCRUM"  # Replace with your project key
+                },
+                "issuetype": {
+                  "name": "Bug"  # Replace with your issue type
+                },
+                "reporter": {
+                  "id": "krunalshaikh786"  # Replace with the reporter's account ID
                 },
                 "summary": "New Commit: ${{ github.sha }}",
                 "description": {
@@ -45,9 +50,6 @@ jobs:
                       ]
                     }
                   ]
-                },
-                "issuetype": {
-                  "name": "Bug"  # Replace with your issue type (e.g., Bug, Story, Task)
                 }
               }
             }'
