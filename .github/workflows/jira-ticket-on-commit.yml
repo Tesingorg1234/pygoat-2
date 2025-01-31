@@ -28,7 +28,7 @@ jobs:
             --data '{
               "fields": {
                 "project": {
-                  "key": "YOUR_PROJECT_KEY"  # Replace with your Jira project key
+                  "key": "SCRUM"  # Replace with your Jira project key
                 },
                 "summary": "New Commit: ${{ github.sha }}",
                 "description": {
