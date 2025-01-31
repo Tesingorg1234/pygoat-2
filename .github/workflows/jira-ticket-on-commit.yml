@@ -13,14 +13,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      - name: Get Changed Files
+        id: changed-files
+        run: |
+          CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r ${{ github.sha }} | tr '\n' ', ')
+          echo "changed_files=$CHANGED_FILES" >> $GITHUB_ENV
+
       - name: Create Jira Ticket
         env:
           JIRA_DOMAIN: ${{ secrets.JIRA_DOMAIN }}
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
-          JIRA_ACCOUNT_ID: ${{ secrets.JIRA_ACCOUNT_ID }}  # Store the valid account ID in GitHub Secrets
+          JIRA_ACCOUNT_ID: ${{ secrets.JIRA_ACCOUNT_ID }}
         run: |
-
           curl --http1.1 --request POST \
             --url "https://$JIRA_DOMAIN/rest/api/3/issue" \
             --header "Authorization: Basic $JIRA_API_TOKEN" \
@@ -31,7 +36,7 @@ jobs:
                 "project": { "key": "SCRUM" },
                 "issuetype": { "name": "Bug" },
                 "reporter": { "accountId": "'"$JIRA_ACCOUNT_ID"'" },
-                "summary": "New Commit: '${{ github.sha }}'",
+                "summary": "New Commit by '${{ github.actor }}': '${{ github.sha }}'",
                 "description": {
                   "type": "doc",
                   "version": 1,
@@ -41,7 +46,25 @@ jobs:
                       "content": [
                         {
                           "type": "text",
-                          "text": "A new commit was made. Commit message: ${{ github.event.head_commit.message }}"
+                          "text": "Committer: ${{ github.actor }}\n"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "Commit message: ${{ github.event.head_commit.message }}\n"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "Changed Files: ${{ env.changed_files }}"
                         }
                       ]
                     }
