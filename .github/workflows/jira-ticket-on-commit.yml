@@ -1,0 +1,53 @@
+name: Create Jira Ticket on Commit
+
+on:
+  push:
+    branches:
+      - main  # Trigger on commits to the main branch
+
+jobs:
+  create-jira-ticket:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Create Jira Ticket
+        env:
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}  # Your Jira API token
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}          # Your Jira email
+          JIRA_DOMAIN: ${{ secrets.JIRA_DOMAIN }}        # Your Jira domain (e.g., your-domain.atlassian.net)
+        run: |
+          # Use curl to create a Jira ticket via the REST API
+          curl --request POST \
+            --url "https://$JIRA_DOMAIN/rest/api/3/issue" \
+            --user "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+            --header "Accept: application/json" \
+            --header "Content-Type: application/json" \
+            --data '{
+              "fields": {
+                "project": {
+                  "key": "YOUR_PROJECT_KEY"  # Replace with your Jira project key
+                },
+                "summary": "New Commit: ${{ github.sha }}",
+                "description": {
+                  "type": "doc",
+                  "version": 1,
+                  "content": [
+                    {
+                      "type": "paragraph",
+                      "content": [
+                        {
+                          "type": "text",
+                          "text": "A new commit was made to the repository. Commit message: ${{ github.event.head_commit.message }}"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "issuetype": {
+                  "name": "Task"  # Replace with your issue type (e.g., Bug, Story, Task)
+                }
+              }
+            }'
