@@ -21,21 +21,21 @@ jobs:
         run: |
           curl --request POST \
             --url "https://$JIRA_DOMAIN/rest/api/3/issue" \
-            --user "$JIRA_EMAIL:$JIRA_API_TOKEN" \
+            --header "Authorization: Basic $(echo -n "$JIRA_EMAIL:$JIRA_API_TOKEN" | base64)" \
             --header "Accept: application/json" \
             --header "Content-Type: application/json" \
             --data '{
               "fields": {
                 "project": {
-                  "key": "SCRUM"  # Replace with your project key
+                  "key": "SCRUM"  # Replace with your Jira project key
                 },
                 "issuetype": {
                   "name": "Bug"  # Replace with your issue type
                 },
                 "reporter": {
-                  "id": "krunalshaikh786"  # Replace with the reporter's account ID
+                  "accountId": "712020:59136aa2-b1f5-4776-b4d9-2dbf8b9e3e08"  # Replace with actual reporter's accountId
                 },
-                "summary": "New Commit: ${{ github.sha }}",
+                "summary": "New Commit: '${{ github.sha }}'",
                 "description": {
                   "type": "doc",
                   "version": 1,
