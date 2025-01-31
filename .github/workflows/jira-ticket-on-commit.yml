@@ -47,7 +47,7 @@ jobs:
                   ]
                 },
                 "issuetype": {
-                  "name": "Task"  # Replace with your issue type (e.g., Bug, Story, Task)
+                  "name": "Bug"  # Replace with your issue type (e.g., Bug, Story, Task)
                 }
               }
             }'
