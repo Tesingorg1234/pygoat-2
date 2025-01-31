@@ -23,7 +23,7 @@ jobs:
 
           curl --http1.1 --request POST \
             --url "https://$JIRA_DOMAIN/rest/api/3/issue" \
-            --header "Authorization: Basic $AUTH_HEADER" \
+            --header "Authorization: Basic $JIRA_API_TOKEN" \
             --header "Accept: application/json" \
             --header "Content-Type: application/json" \
             --data '{
