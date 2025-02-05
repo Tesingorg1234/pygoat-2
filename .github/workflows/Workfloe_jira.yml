@@ -1,0 +1,94 @@
+name: Link Commit to Jira Ticket
+
+on:
+  push:
+    branches:
+      - main  # Triggers when code is pushed to the main branch
+
+jobs:
+  link-jira-ticket:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 2  # Ensure Git has history to detect changes
+
+      - name: Debug Commit Message
+        run: |
+          echo "Commit SHA: ${{ github.sha }}"
+          echo "Commit Message: ${{ github.event.head_commit.message }}"
+
+      - name: Extract Jira Ticket ID from Commit Message
+        id: extract-ticket
+        run: |
+          COMMIT_MSG="${{ github.event.head_commit.message }}"
+          JIRA_TICKET=$(echo "$COMMIT_MSG" | grep -oE "\[([A-Z]+-[0-9]+)\]" | tr -d '[]')
+          
+          if [ -z "$JIRA_TICKET" ]; then
+            echo "No Jira Ticket ID found in commit message. Exiting..."
+            echo "process_jira=false" >> $GITHUB_ENV
+            exit 0
+          fi
+          
+          echo "Jira Ticket ID: $JIRA_TICKET"
+          echo "jira_ticket=$JIRA_TICKET" >> $GITHUB_ENV
+          echo "process_jira=true" >> $GITHUB_ENV
+
+      - name: Validate Jira Ticket
+        if: env.process_jira == 'true'
+        id: validate-ticket
+        env:
+          JIRA_DOMAIN: ${{ secrets.JIRA_DOMAIN }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: |
+          AUTH_HEADER=$(echo -n "$JIRA_EMAIL:$JIRA_API_TOKEN" | base64 | tr -d '\n')
+          RESPONSE=$(curl --silent --request GET \
+            --url "https://$JIRA_DOMAIN/rest/api/3/issue/${{ env.jira_ticket }}" \
+            --header "Authorization: Basic $AUTH_HEADER" \
+            --header "Accept: application/json")
+
+          if echo "$RESPONSE" | grep -q '"errorMessages"'; then
+            echo "Jira Ticket ID ${{ env.jira_ticket }} does not exist. Exiting..."
+            echo "valid_jira_ticket=false" >> $GITHUB_ENV
+            exit 0
+          fi
+
+          STATUS=$(echo "$RESPONSE" | jq -r '.fields.status.name')
+
+          echo "Jira Ticket Status: $STATUS"
+          if [ "$STATUS" != "In Progress" ]; then
+            echo "Jira Ticket is not under development. Exiting..."
+            echo "valid_jira_ticket=false" >> $GITHUB_ENV
+            exit 0
+          fi
+
+          echo "valid_jira_ticket=true" >> $GITHUB_ENV
+
+      - name: Link Commit to Jira Ticket
+        if: env.valid_jira_ticket == 'true'
+        env:
+          JIRA_DOMAIN: ${{ secrets.JIRA_DOMAIN }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: |
+          AUTH_HEADER=$(echo -n "$JIRA_EMAIL:$JIRA_API_TOKEN" | base64 | tr -d '\n')
+
+          echo "Linking commit to Jira Ticket: ${{ env.jira_ticket }}"
+
+          curl --http1.1 --request POST \
+            --url "https://$JIRA_DOMAIN/rest/api/3/issue/${{ env.jira_ticket }}/remotelink" \
+            --header "Authorization: Basic $AUTH_HEADER" \
+            --header "Accept: application/json" \
+            --header "Content-Type: application/json" \
+            --data '{
+              "object": {
+                "url": "https://github.com/${{ github.repository }}/commit/${{ github.sha }}",
+                "title": "GitHub Commit: ${{ github.sha }}",
+                "summary": "Commit linked from GitHub Actions"
+              }
+            }'
+
+          echo "Commit linked successfully!"
