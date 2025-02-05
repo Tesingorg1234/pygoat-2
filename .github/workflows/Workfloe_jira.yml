@@ -62,7 +62,7 @@ jobs:
 
             # Check if status is "In Progress"
             if [ "$STATUS" != "In Progress" ]; then
-              echo "❌ Jira Ticket is not under development."
+              echo "❌ Jira Ticket is not In Progress."
               FAILURE=true
             fi
           fi
@@ -73,7 +73,7 @@ jobs:
             exit 1  # ❗ Force GitHub Actions to FAIL
           fi
 
-          echo "✅ Jira Ticket is valid and under development."
+          echo "✅ Jira Ticket is valid and In Progress."
 
       - name: Link Commit to Jira Ticket
         env:
