@@ -83,19 +83,19 @@ jobs:
         run: |
           AUTH_HEADER=$(echo -n "$JIRA_EMAIL:$JIRA_API_TOKEN" | base64 | tr -d '\n')
 
-          echo "🔍 Checking if Jira custom field 'customfield_10040' exists..."
+          echo "🔍 Checking if Jira custom field 'customfield_10039' exists..."
           
           FIELD_CHECK=$(curl --silent --request GET \
             --url "https://$JIRA_DOMAIN/rest/api/3/field" \
             --header "Authorization: Basic $AUTH_HEADER" \
-            --header "Accept: application/json" | jq -r '.[] | select(.id=="customfield_10040")')
+            --header "Accept: application/json" | jq -r '.[] | select(.id=="customfield_10039")')
 
           if [ -z "$FIELD_CHECK" ]; then
-            echo "❌ Jira field 'customfield_10040' not found! Failing workflow."
+            echo "❌ Jira field 'customfield_10039' not found! Failing workflow."
             exit 1
           fi
 
-          echo "✅ Jira field 'customfield_10040' found."
+          echo "✅ Jira field 'customfield_10039' found."
 
       - name: Update Jira Custom Field with Changed Files
         env:
