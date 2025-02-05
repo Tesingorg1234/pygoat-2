@@ -114,7 +114,7 @@ jobs:
             --header "Content-Type: application/json" \
             --data '{
               "fields": {
-                "customfield_10040": "'"${{ env.changed_files }}"'"
+                "customfield_10039": "'"${{ env.changed_files }}"'"
               }
             }')
 
