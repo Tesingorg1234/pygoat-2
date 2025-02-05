@@ -21,10 +21,10 @@ jobs:
           COMMIT_MSG="${{ github.event.head_commit.message }}"
           JIRA_TICKET=$(echo "$COMMIT_MSG" | grep -oE "\[([A-Z]+-[0-9]+)\]" | tr -d '[]')
           if [ -z "$JIRA_TICKET" ]; then
-            echo "No Jira Ticket ID found in commit message. Failing workflow."
+            echo "❌ No Jira Ticket ID found in commit message. Failing workflow."
             exit 1
           fi
-          echo "Jira Ticket ID: $JIRA_TICKET"
+          echo "✅ Jira Ticket ID: $JIRA_TICKET"
           echo "jira_ticket=$JIRA_TICKET" >> $GITHUB_ENV
 
       - name: Get Changed Files
@@ -34,7 +34,7 @@ jobs:
           CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r ${{ github.sha }} | tr '\n' ', ')
           
           if [ -z "$CHANGED_FILES" ]; then
-            echo "No changed files found. Exiting workflow."
+            echo "❌ No changed files found. Exiting workflow."
             exit 1
           fi
           echo "Changed Files: $CHANGED_FILES"
@@ -56,23 +56,46 @@ jobs:
 
           FAILURE=false
           if echo "$RESPONSE" | grep -q '"errorMessages"'; then
-            echo "Jira Ticket ID ${{ env.jira_ticket }} does not exist."
+            echo "❌ Jira Ticket ID ${{ env.jira_ticket }} does not exist."
             FAILURE=true
           else
             STATUS=$(echo "$RESPONSE" | jq -r '.fields.status.name')
             echo "🔍 Jira Ticket Status: $STATUS"
             if [ "$STATUS" != "In Progress" ]; then
-              echo "Jira Ticket is not In Progress."
+              echo "❌ Jira Ticket is not In Progress."
               FAILURE=true
             fi
           fi
 
           if [ "$FAILURE" = true ]; then
-            echo "Exiting workflow with failure."
+            echo "❌ Exiting workflow with failure."
             exit 1
           fi
 
-          echo "Jira Ticket is valid and In Progress."
+          echo "✅ Jira Ticket is valid and In Progress."
+
+      - name: Validate Jira Custom Field Exists
+        id: validate-custom-field
+        env:
+          JIRA_DOMAIN: ${{ secrets.JIRA_DOMAIN }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: |
+          AUTH_HEADER=$(echo -n "$JIRA_EMAIL:$JIRA_API_TOKEN" | base64 | tr -d '\n')
+
+          echo "🔍 Checking if Jira custom field 'customfield_10040' exists..."
+          
+          FIELD_CHECK=$(curl --silent --request GET \
+            --url "https://$JIRA_DOMAIN/rest/api/3/field" \
+            --header "Authorization: Basic $AUTH_HEADER" \
+            --header "Accept: application/json" | jq -r '.[] | select(.id=="customfield_10040")')
+
+          if [ -z "$FIELD_CHECK" ]; then
+            echo "❌ Jira field 'customfield_10040' not found! Failing workflow."
+            exit 1
+          fi
+
+          echo "✅ Jira field 'customfield_10040' found."
 
       - name: Update Jira Custom Field with Changed Files
         env:
@@ -81,7 +104,8 @@ jobs:
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
         run: |
           AUTH_HEADER=$(echo -n "$JIRA_EMAIL:$JIRA_API_TOKEN" | base64 | tr -d '\n')
-          echo "Updating Jira Custom Field for Changed Files"
+
+          echo "📝 Updating Jira Custom Field for Changed Files..."
 
           RESPONSE=$(curl --silent --write-out "%{http_code}" --output response.json --request PUT \
             --url "https://$JIRA_DOMAIN/rest/api/3/issue/${{ env.jira_ticket }}" \
@@ -94,15 +118,13 @@ jobs:
               }
             }')
 
-          HTTP_STATUS=$(cat response.json)
-
-          if [ "$HTTP_STATUS" -ne 204 ]; then
-            echo "Failed to update Jira custom field. Response:"
+          if grep -q "errorMessages" response.json; then
+            echo "❌ Failed to update Jira custom field. Response:"
             cat response.json
-            exit 1  # Force the workflow to fail if Jira field update fails
+            exit 1  # ❗ Force workflow to fail if Jira field update fails
           fi
 
-          echo "Updated Jira field with changed files."
+          echo "✅ Updated Jira field with changed files."
 
       - name: Link Commit to Jira Ticket with Changed Files
         env:
@@ -111,7 +133,7 @@ jobs:
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
         run: |
           AUTH_HEADER=$(echo -n "$JIRA_EMAIL:$JIRA_API_TOKEN" | base64 | tr -d '\n')
-          echo "Linking commit to Jira Ticket: ${{ env.jira_ticket }}"
+          echo "🔗 Linking commit to Jira Ticket: ${{ env.jira_ticket }}"
 
           RESPONSE=$(curl --silent --write-out "%{http_code}" --output response.json --request POST \
             --url "https://$JIRA_DOMAIN/rest/api/3/issue/${{ env.jira_ticket }}/remotelink" \
@@ -130,12 +152,10 @@ jobs:
               }
             }')
 
-          HTTP_STATUS=$(cat response.json)
-
-          if [ "$HTTP_STATUS" -ne 201 ]; then
-            echo "Failed to link commit to Jira. Response:"
+          if grep -q "errorMessages" response.json; then
+            echo "❌ Failed to link commit to Jira. Response:"
             cat response.json
-            exit 1  # Force the workflow to fail if commit linking fails
+            exit 1  # ❗ Force workflow to fail if commit linking fails
           fi
 
-          echo "Commit linked successfully!"
+          echo "✅ Commit linked successfully!"
