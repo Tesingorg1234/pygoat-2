@@ -27,17 +27,14 @@ jobs:
           JIRA_TICKET=$(echo "$COMMIT_MSG" | grep -oE "\[([A-Z]+-[0-9]+)\]" | tr -d '[]')
           
           if [ -z "$JIRA_TICKET" ]; then
-            echo "No Jira Ticket ID found in commit message. Exiting..."
-            echo "process_jira=false" >> $GITHUB_ENV
-            exit 0
+            echo "❌ No Jira Ticket ID found in commit message. Skipping process."
+            exit 0  # Exit normally (no failure)
           fi
           
-          echo "Jira Ticket ID: $JIRA_TICKET"
+          echo "✅ Jira Ticket ID: $JIRA_TICKET"
           echo "jira_ticket=$JIRA_TICKET" >> $GITHUB_ENV
-          echo "process_jira=true" >> $GITHUB_ENV
 
       - name: Validate Jira Ticket
-        if: env.process_jira == 'true'
         id: validate-ticket
         env:
           JIRA_DOMAIN: ${{ secrets.JIRA_DOMAIN }}
@@ -45,30 +42,40 @@ jobs:
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
         run: |
           AUTH_HEADER=$(echo -n "$JIRA_EMAIL:$JIRA_API_TOKEN" | base64 | tr -d '\n')
+
+          echo "🔍 Checking if Jira Ticket ${{ env.jira_ticket }} exists..."
           RESPONSE=$(curl --silent --request GET \
             --url "https://$JIRA_DOMAIN/rest/api/3/issue/${{ env.jira_ticket }}" \
             --header "Authorization: Basic $AUTH_HEADER" \
             --header "Accept: application/json")
 
+          # Set failure flag
+          FAILURE=false
+
+          # Check if the ticket exists
           if echo "$RESPONSE" | grep -q '"errorMessages"'; then
-            echo "Jira Ticket ID ${{ env.jira_ticket }} does not exist. Exiting..."
-            echo "valid_jira_ticket=false" >> $GITHUB_ENV
-            exit 0
+            echo "❌ Jira Ticket ID ${{ env.jira_ticket }} does not exist."
+            FAILURE=true
+          else
+            STATUS=$(echo "$RESPONSE" | jq -r '.fields.status.name')
+            echo "🔍 Jira Ticket Status: $STATUS"
+
+            # Check if status is "Under Development"
+            if [ "$STATUS" != "Under Development" ]; then
+              echo "❌ Jira Ticket is not under development."
+              FAILURE=true
+            fi
           fi
 
-          STATUS=$(echo "$RESPONSE" | jq -r '.fields.status.name')
-
-          echo "Jira Ticket Status: $STATUS"
-          if [ "$STATUS" != "In Progress" ]; then
-            echo "Jira Ticket is not under development. Exiting..."
-            echo "valid_jira_ticket=false" >> $GITHUB_ENV
-            exit 0
+          # If failure occurred, exit with an error
+          if [ "$FAILURE" = true ]; then
+            echo "❌ Exiting workflow with failure."
+            exit 1  # ❗ Force GitHub Actions to FAIL
           fi
 
-          echo "valid_jira_ticket=true" >> $GITHUB_ENV
+          echo "✅ Jira Ticket is valid and under development."
 
       - name: Link Commit to Jira Ticket
-        if: env.valid_jira_ticket == 'true'
         env:
           JIRA_DOMAIN: ${{ secrets.JIRA_DOMAIN }}
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
@@ -76,7 +83,7 @@ jobs:
         run: |
           AUTH_HEADER=$(echo -n "$JIRA_EMAIL:$JIRA_API_TOKEN" | base64 | tr -d '\n')
 
-          echo "Linking commit to Jira Ticket: ${{ env.jira_ticket }}"
+          echo "🔗 Linking commit to Jira Ticket: ${{ env.jira_ticket }}"
 
           curl --http1.1 --request POST \
             --url "https://$JIRA_DOMAIN/rest/api/3/issue/${{ env.jira_ticket }}/remotelink" \
@@ -91,4 +98,4 @@ jobs:
               }
             }'
 
-          echo "Commit linked successfully!"
+          echo "✅ Commit linked successfully!"
