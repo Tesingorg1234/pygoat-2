@@ -74,8 +74,8 @@ jobs:
             STATUS=$(echo "$RESPONSE" | jq -r '.fields.status.name')
             echo "🔍 Jira Ticket Status: $STATUS"
 
-            if [ "$STATUS" != "Under Development" ]; then
-              echo "❌ Jira Ticket is not under development."
+            if [ "$STATUS" != "In Progress" ]; then
+              echo "❌ Jira Ticket is not In Progress."
               FAILURE=true
             fi
           fi
@@ -85,7 +85,7 @@ jobs:
             exit 1  # ❗ Force GitHub Actions to FAIL
           fi
 
-          echo "✅ Jira Ticket is valid and under development."
+          echo "✅ Jira Ticket is valid and In Progress."
 
       - name: Update Jira Custom Field with Changed Files
         env:
