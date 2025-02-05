@@ -11,7 +11,7 @@ our roadmap build intentionally vuln web Application in django. The Vulnerabilit
 • A3:2017-Sensitive Data Exposure<br>
 • A4:2017-XML External Entities (XXE)<br>
 • A5:2017-Broken Access Control<br>
-• A6:2017-Security Misconfiguration<br>
+• A6:2017-Security Misconfiguration<br>k
 • A7:2017-Cross-Site Scripting (XSS)<br>
 • A8:2017-Insecure Deserialization<br>
 • A9:2017-Using Components with Known Vulnerabilities<br>
