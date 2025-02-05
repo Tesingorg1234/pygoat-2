@@ -96,7 +96,7 @@ jobs:
             --header "Content-Type: application/json" \
             --data '{
               "fields": {
-                "customfield_Changed files in last commit": "'"${{ env.changed_files }}"'"
+                "customfield_changedfilesinlastcommit": "'"${{ env.changed_files }}"'"
               }
             }'
 
