@@ -120,8 +120,7 @@ jobs:
             --data '{
               "object": {
                 "url": "https://github.com/${{ github.repository }}/commit/${{ github.sha }}",
-                "title": "GitHub Commit: ${{ github.sha }},
-                          Changes: ${{ env.changed_files }}",
+                "title": "GitHub Commit: ${{ github.sha }}, Changes: ${{ env.changed_files }}",
                 "summary": "**Commit linked from GitHub Actions**\n\n **Changed Files:**\n\n '"${{ env.changed_files }}"'",
                 "icon": {
                   "url16x16": "https://github.com/favicon.ico",
