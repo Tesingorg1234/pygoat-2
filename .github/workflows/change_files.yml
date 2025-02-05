@@ -15,38 +15,31 @@ jobs:
         with:
           fetch-depth: 2  # Ensure Git has history to detect changes
 
-      - name: Debug Commit Message
-        run: |
-          echo "Commit SHA: ${{ github.sha }}"
-          echo "Commit Message: ${{ github.event.head_commit.message }}"
-
       - name: Extract Jira Ticket ID from Commit Message
         id: extract-ticket
         run: |
           COMMIT_MSG="${{ github.event.head_commit.message }}"
           JIRA_TICKET=$(echo "$COMMIT_MSG" | grep -oE "\[([A-Z]+-[0-9]+)\]" | tr -d '[]')
-          
+
           if [ -z "$JIRA_TICKET" ]; then
             echo "❌ No Jira Ticket ID found in commit message. Failing workflow."
-            exit 1  # ❗ Fail workflow if no Jira ID is found
+            exit 1
           fi
-          
+
           echo "✅ Jira Ticket ID: $JIRA_TICKET"
           echo "jira_ticket=$JIRA_TICKET" >> $GITHUB_ENV
 
       - name: Get Changed Files
         id: changed-files
         run: |
-          echo "Fetching changed files..."
-          git fetch --prune --unshallow  # Ensure full Git history
-          
+          git fetch --prune --unshallow
           CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r ${{ github.sha }} | tr '\n' ', ')
           
           if [ -z "$CHANGED_FILES" ]; then
             echo "❌ No changed files found. Exiting workflow."
             exit 1
           fi
-          
+
           echo "Changed Files: $CHANGED_FILES"
           echo "changed_files=$CHANGED_FILES" >> $GITHUB_ENV
 
@@ -73,7 +66,6 @@ jobs:
           else
             STATUS=$(echo "$RESPONSE" | jq -r '.fields.status.name')
             echo "🔍 Jira Ticket Status: $STATUS"
-
             if [ "$STATUS" != "In Progress" ]; then
               echo "❌ Jira Ticket is not In Progress."
               FAILURE=true
@@ -82,7 +74,7 @@ jobs:
 
           if [ "$FAILURE" = true ]; then
             echo "❌ Exiting workflow with failure."
-            exit 1  # ❗ Force GitHub Actions to FAIL
+            exit 1
           fi
 
           echo "✅ Jira Ticket is valid and In Progress."
@@ -104,7 +96,7 @@ jobs:
             --header "Content-Type: application/json" \
             --data '{
               "fields": {
-                "Changed files in last commit": "'"${{ env.changed_files }}"'"
+                "customfield_Changed files in last commit": "'"${{ env.changed_files }}"'"
               }
             }'
 
@@ -129,7 +121,11 @@ jobs:
               "object": {
                 "url": "https://github.com/${{ github.repository }}/commit/${{ github.sha }}",
                 "title": "GitHub Commit: ${{ github.sha }}",
-                "summary": "Commit linked from GitHub Actions. \n\n **Changed Files:** \n\n ${{ env.changed_files }}"
+                "summary": "**Commit linked from GitHub Actions**\n\n **Changed Files:**\n\n '"${{ env.changed_files }}"'",
+                "icon": {
+                  "url16x16": "https://github.com/favicon.ico",
+                  "title": "GitHub"
+                }
               }
             }'
 
