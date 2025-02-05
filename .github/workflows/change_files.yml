@@ -1,4 +1,4 @@
-name: Link Commit to Jira Ticket
+name: Link Commit to Jira Ticket and Update Changed Files
 
 on:
   push:
@@ -74,8 +74,8 @@ jobs:
             STATUS=$(echo "$RESPONSE" | jq -r '.fields.status.name')
             echo "🔍 Jira Ticket Status: $STATUS"
 
-            if [ "$STATUS" != "In Progress" ]; then
-              echo "❌ Jira Ticket is not In Progress."
+            if [ "$STATUS" != "Under Development" ]; then
+              echo "❌ Jira Ticket is not under development."
               FAILURE=true
             fi
           fi
@@ -85,7 +85,30 @@ jobs:
             exit 1  # ❗ Force GitHub Actions to FAIL
           fi
 
-          echo "✅ Jira Ticket is valid and In Progress."
+          echo "✅ Jira Ticket is valid and under development."
+
+      - name: Update Jira Custom Field with Changed Files
+        env:
+          JIRA_DOMAIN: ${{ secrets.JIRA_DOMAIN }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: |
+          AUTH_HEADER=$(echo -n "$JIRA_EMAIL:$JIRA_API_TOKEN" | base64 | tr -d '\n')
+
+          echo "📝 Updating Jira Custom Field for Changed Files"
+
+          curl --request PUT \
+            --url "https://$JIRA_DOMAIN/rest/api/3/issue/${{ env.jira_ticket }}" \
+            --header "Authorization: Basic $AUTH_HEADER" \
+            --header "Accept: application/json" \
+            --header "Content-Type: application/json" \
+            --data '{
+              "fields": {
+                "customfield_XXXXX": "'"${{ env.changed_files }}"'"
+              }
+            }'
+
+          echo "✅ Updated Jira field with changed files."
 
       - name: Link Commit to Jira Ticket with Changed Files
         env:
