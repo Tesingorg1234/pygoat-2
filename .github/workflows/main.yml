@@ -6,9 +6,11 @@ on:
       - main  # Triggers when code is pushed to the main branch
 
 jobs:
-  link-jira-ticket:
+  update-jira:
     runs-on: ubuntu-latest
-
+    outputs:
+      jira_ticket: ${{ steps.extract-ticket.outputs.jira_ticket }}
+      changed_files: ${{ steps.changed-files.outputs.changed_files }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -25,20 +27,19 @@ jobs:
             exit 1
           fi
           echo "Jira Ticket ID: $JIRA_TICKET"
-          echo "jira_ticket=$JIRA_TICKET" >> $GITHUB_ENV
+          echo "jira_ticket=$JIRA_TICKET" >> $GITHUB_OUTPUT
 
       - name: Get Changed Files
         id: changed-files
         run: |
           git fetch --prune --unshallow
           CHANGED_FILES=$(git diff-tree --no-commit-id --name-only -r ${{ github.sha }} | tr '\n' ', ')
-          
           if [ -z "$CHANGED_FILES" ]; then
             echo "No changed files found. Exiting workflow."
             exit 1
           fi
           echo "Changed Files: $CHANGED_FILES"
-          echo "changed_files=$CHANGED_FILES" >> $GITHUB_ENV
+          echo "changed_files=$CHANGED_FILES" >> $GITHUB_OUTPUT
 
       - name: Validate Jira Ticket
         id: validate-ticket
@@ -46,17 +47,17 @@ jobs:
           JIRA_DOMAIN: ${{ secrets.JIRA_DOMAIN }}
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          jira_ticket: ${{ steps.extract-ticket.outputs.jira_ticket }}
         run: |
           AUTH_HEADER=$(echo -n "$JIRA_EMAIL:$JIRA_API_TOKEN" | base64 | tr -d '\n')
-          echo "Checking if Jira Ticket ${{ env.jira_ticket }} exists..."
+          echo "Checking if Jira Ticket $jira_ticket exists..."
           RESPONSE=$(curl --silent --request GET \
-            --url "https://$JIRA_DOMAIN/rest/api/3/issue/${{ env.jira_ticket }}" \
+            --url "https://$JIRA_DOMAIN/rest/api/3/issue/$jira_ticket" \
             --header "Authorization: Basic $AUTH_HEADER" \
             --header "Accept: application/json")
-
           FAILURE=false
           if echo "$RESPONSE" | grep -q '"errorMessages"'; then
-            echo "Jira Ticket ID ${{ env.jira_ticket }} does not exist."
+            echo "Jira Ticket ID $jira_ticket does not exist."
             FAILURE=true
           else
             STATUS=$(echo "$RESPONSE" | jq -r '.fields.status.name')
@@ -66,12 +67,10 @@ jobs:
               FAILURE=true
             fi
           fi
-
           if [ "$FAILURE" = true ]; then
             echo "Exiting workflow with failure."
             exit 1
           fi
-
           echo "Jira Ticket is valid and In Progress."
 
       - name: Validate Jira Custom Field Exists
@@ -82,19 +81,15 @@ jobs:
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
         run: |
           AUTH_HEADER=$(echo -n "$JIRA_EMAIL:$JIRA_API_TOKEN" | base64 | tr -d '\n')
-
           echo "Checking if Jira custom field 'customfield_10039' exists..."
-          
           FIELD_CHECK=$(curl --silent --request GET \
             --url "https://$JIRA_DOMAIN/rest/api/3/field" \
             --header "Authorization: Basic $AUTH_HEADER" \
             --header "Accept: application/json" | jq -r '.[] | select(.id=="customfield_10039")')
-
           if [ -z "$FIELD_CHECK" ]; then
             echo "Jira field 'customfield_10039' not found! Failing workflow."
             exit 1
           fi
-
           echo "Jira field 'customfield_10039' found."
 
       - name: Update Jira Custom Field with Changed Files
@@ -102,60 +97,61 @@ jobs:
           JIRA_DOMAIN: ${{ secrets.JIRA_DOMAIN }}
           JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
           JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          jira_ticket: ${{ steps.extract-ticket.outputs.jira_ticket }}
+          changed_files: ${{ steps.changed-files.outputs.changed_files }}
         run: |
           AUTH_HEADER=$(echo -n "$JIRA_EMAIL:$JIRA_API_TOKEN" | base64 | tr -d '\n')
-
           echo "Updating Jira Custom Field for Changed Files..."
-
           RESPONSE=$(curl --silent --write-out "%{http_code}" --output response.json --request PUT \
-            --url "https://$JIRA_DOMAIN/rest/api/3/issue/${{ env.jira_ticket }}" \
+            --url "https://$JIRA_DOMAIN/rest/api/3/issue/$jira_ticket" \
             --header "Authorization: Basic $AUTH_HEADER" \
             --header "Accept: application/json" \
             --header "Content-Type: application/json" \
             --data '{
               "fields": {
-                "customfield_10039": "'"${{ env.changed_files }}"'"
+                "customfield_10039": "'"$changed_files"'"
               }
             }')
-
           if grep -q "errorMessages" response.json; then
             echo "Failed to update Jira custom field. Response:"
             cat response.json
-            exit 1  # Force workflow to fail if Jira field update fails
+            exit 1
           fi
-
           echo "Updated Jira field with changed files."
 
+  link-commit:
+    needs: update-jira
+    runs-on: ubuntu-latest
+    env:
+      JIRA_DOMAIN: ${{ secrets.JIRA_DOMAIN }}
+      JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+      JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+      jira_ticket: ${{ needs.update-jira.outputs.jira_ticket }}
+      changed_files: ${{ needs.update-jira.outputs.changed_files }}
+    steps:
       - name: Link Commit to Jira Ticket with Changed Files
-        env:
-          JIRA_DOMAIN: ${{ secrets.JIRA_DOMAIN }}
-          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
-          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
         run: |
           AUTH_HEADER=$(echo -n "$JIRA_EMAIL:$JIRA_API_TOKEN" | base64 | tr -d '\n')
-          echo "Linking commit to Jira Ticket: ${{ env.jira_ticket }}"
-
+          echo "Linking commit to Jira Ticket: $jira_ticket"
           RESPONSE=$(curl --silent --write-out "%{http_code}" --output response.json --request POST \
-            --url "https://$JIRA_DOMAIN/rest/api/3/issue/${{ env.jira_ticket }}/remotelink" \
+            --url "https://$JIRA_DOMAIN/rest/api/3/issue/$jira_ticket/remotelink" \
             --header "Authorization: Basic $AUTH_HEADER" \
             --header "Accept: application/json" \
             --header "Content-Type: application/json" \
             --data '{
               "object": {
                 "url": "https://github.com/${{ github.repository }}/commit/${{ github.sha }}",
-                "title": "GitHub Commit: ${{ github.sha }}, Changes: ${{ env.changed_files }}",
-                "summary": "**Commit linked from GitHub Actions**\n\n **Changed Files:**\n\n '"${{ env.changed_files }}"'",
+                "title": "GitHub Commit: ${{ github.sha }}, Changes: '"$changed_files"'",
+                "summary": "**Commit linked from GitHub Actions**\n\n **Changed Files:**\n\n '"$changed_files"'",
                 "icon": {
                   "url16x16": "https://github.com/favicon.ico",
                   "title": "GitHub"
                 }
               }
             }')
-
           if grep -q "errorMessages" response.json; then
             echo "Failed to link commit to Jira. Response:"
             cat response.json
-            exit 1  # Force workflow to fail if commit linking fails
+            exit 1
           fi
-
           echo "Commit linked successfully!"
