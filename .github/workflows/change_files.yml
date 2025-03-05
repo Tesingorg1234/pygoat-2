@@ -1,4 +1,4 @@
-name: Link Commit to Jira Ticket and Update Changed Files
+name: Link Commit to
 
 on:
   push:
