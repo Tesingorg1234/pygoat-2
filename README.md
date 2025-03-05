@@ -4,7 +4,7 @@
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
 
 intentionally  web Application Security in 
-our roadmap build intentionally vuln web Application in django. The Vulnerability can based on OWASP
+our roadmap build intentionally vuln web Application in django. The Vulnerability can based  OWASP
 <br>
 • A1:2017-Injection<br> 
 • A2:2017-Broken Authentication<br>
